@@ -73,8 +73,8 @@ func (o *Ovsklingo) sendAudio(chatId int64, message string) {
 		Bytes: audioBytes,
 	}
 	upload := tgbotapi.NewVoiceUpload(chatId, audioFile)
-	os.Remove(fullPath)
 	o.bot.Send(upload)
+	os.Remove(fullPath)
 }
 
 func (o *Ovsklingo) getTextFromVoice(ctx context.Context, msg *tgbotapi.Message) (string, error) {
@@ -134,12 +134,14 @@ func (o *Ovsklingo) Start() error {
 		msgTxt := update.Message.Text
 		if msgTxt == "/start" {
 			o.activeChats[chatId] = false
+			keyboadButtons := []tgbotapi.KeyboardButton{}
+			for _, v := range o.languages {
+				keyboadButtons = append(keyboadButtons, tgbotapi.NewKeyboardButton(string(v)))
+			}
 			reply := tgbotapi.NewMessage(chatId, "What language do you want to learn?")
 			reply.ReplyMarkup = tgbotapi.NewReplyKeyboard(
 				tgbotapi.NewKeyboardButtonRow(
-					tgbotapi.NewKeyboardButton(string(Italian)),
-					tgbotapi.NewKeyboardButton(string(Spanish)),
-					tgbotapi.NewKeyboardButton(string(English)),
+					keyboadButtons...,
 				),
 			)
 			o.bot.Send(reply)
@@ -153,6 +155,7 @@ func (o *Ovsklingo) Start() error {
 			prompt = strings.ReplaceAll(prompt, "NAME", names[msgTxt])
 			reply, _ := o.getReply(chatId, prompt+update.Message.Chat.FirstName)
 			msg := tgbotapi.NewMessage(chatId, reply)
+			msg.ReplyMarkup = tgbotapi.NewHideKeyboard(true)
 			o.bot.Send(msg)
 			o.sendAudio(update.Message.Chat.ID, reply)
 			continue
@@ -182,6 +185,7 @@ type Ovsklingo struct {
 	activeChats map[int64]bool
 	speaker     *speaker
 	lang        map[int64]Language
+	languages   []Language
 }
 
 func NewOvsklingo(bot *tgbotapi.BotAPI, client *openai.Client, languages []Language) (Ovsklingo, error) {
@@ -191,6 +195,7 @@ func NewOvsklingo(bot *tgbotapi.BotAPI, client *openai.Client, languages []Langu
 		openai:      client,
 		reader:      bufio.NewReader(os.Stdin),
 		speaker:     speaker,
+		languages:   languages,
 		messages:    make(map[int64][]openai.ChatCompletionMessage, 0),
 		activeChats: make(map[int64]bool, 0),
 		lang:        make(map[int64]Language, 0),
